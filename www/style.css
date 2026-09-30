@@ -1,0 +1,8 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; background: #edf2f5; color: #163047; }
+body { margin: 0; padding: 8vh 5vw; }
+main { max-width: 800px; margin: auto; background: white; padding: 3rem; border-radius: 16px; }
+h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.1; }
+p { line-height: 1.7; }
+img { width: 100%; height: auto; margin: 1.5rem 0; }
+nav { display: flex; gap: 2rem; flex-wrap: wrap; }
+a { color: #096c88; }
