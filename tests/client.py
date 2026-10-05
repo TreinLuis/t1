@@ -1,82 +1,72 @@
 """Cliente de teste independente: HTTP delimitado à mão sobre sockets."""
-import argparse as argparse_a
-import socket as socket_a
-import unittest as unittest_a
-unittest_a.defaultTestLoader.testMethodPrefix = 'i_test_'
-HOST_a = '127.0.0.1'
-PORT_a = 8080
+import argparse
+import socket
+import unittest
+HOST = '127.0.0.1'
+PORT = 8080
 
 class RawClient:
 
-    def i_init(self_a, host_a: str, port_a: int, timeout_a: float=4.0) -> None:
-        self_a.sock_a = socket_a.create_connection((host_a, port_a), timeout_a)
-        self_a.buffer_a = b''
+    def __init__(self, host: str, port: int, timeout: float=4.0) -> None:
+        self.sock = socket.create_connection((host, port), timeout)
+        self.buffer = b''
 
-    # Associação ao protocolo nativo do Python.
-    __init__ = i_init
+    def send(self, data: bytes) -> None:
+        self.sock.sendall(data)
 
-    def i_send(self_a, data_a: bytes) -> None:
-        self_a.sock_a.sendall(data_a)
-
-    def i_read_response(self_a, head_only_a: bool=False) -> tuple:
-        while b'\r\n\r\n' not in self_a.buffer_a:
-            self_a.i_receive()
-        (head_a, self_a.buffer_a) = self_a.buffer_a.split(b'\r\n\r\n', 1)
-        lines_a = head_a.decode('iso-8859-1').split('\r\n')
-        (version_a, status_a, reason_a) = lines_a[0].split(' ', 2)
-        if version_a != 'HTTP/1.1':
+    def read_response(self, head_only: bool=False) -> tuple:
+        while b'\r\n\r\n' not in self.buffer:
+            self._receive()
+        (head, self.buffer) = self.buffer.split(b'\r\n\r\n', 1)
+        lines = head.decode('iso-8859-1').split('\r\n')
+        (version, status, reason) = lines[0].split(' ', 2)
+        if version != 'HTTP/1.1':
             raise AssertionError('Versão de resposta inesperada')
-        headers_a = {}
-        for line_a in lines_a[1:]:
-            (name_a, value_a) = line_a.split(':', 1)
-            if name_a.lower() in headers_a:
+        headers = {}
+        for line in lines[1:]:
+            (name, value) = line.split(':', 1)
+            if name.lower() in headers:
                 raise AssertionError('Cabeçalho de resposta repetido')
-            headers_a[name_a.lower()] = value_a.strip()
-        length_a = 0 if head_only_a else int(headers_a['content-length'])
-        while len(self_a.buffer_a) < length_a:
-            self_a.i_receive()
-        (body_a, self_a.buffer_a) = (self_a.buffer_a[:length_a], self_a.buffer_a[length_a:])
-        return (int(status_a), headers_a, body_a)
+            headers[name.lower()] = value.strip()
+        length = 0 if head_only else int(headers['content-length'])
+        while len(self.buffer) < length:
+            self._receive()
+        (body, self.buffer) = (self.buffer[:length], self.buffer[length:])
+        return (int(status), headers, body)
 
-    def i_receive(self_a) -> None:
-        data_a = self_a.sock_a.recv(65536)
-        if not data_a:
+    def _receive(self) -> None:
+        data = self.sock.recv(65536)
+        if not data:
             raise AssertionError('Conexão fechada antes de completar a resposta')
-        self_a.buffer_a += data_a
+        self.buffer += data
 
-    def i_close(self_a) -> None:
-        self_a.sock_a.close()
+    def close(self) -> None:
+        self.sock.close()
 
-    def i_enter(self_a) -> "RawClient":
-        return self_a
+    def __enter__(self) -> "RawClient":
+        return self
 
-    # Associação ao protocolo nativo do Python.
-    __enter__ = i_enter
+    def __exit__(self, *args) -> None:
+        self.close()
 
-    def i_exit(self_a, *args_a) -> None:
-        self_a.i_close()
+def request(path: str='/test.txt', method: str='GET', connection: str='keep-alive', version: str='HTTP/1.1') -> bytes:
+    return f'{method} {path} {version}\r\nHost: laboratorio\r\nConnection: {connection}\r\n\r\n'.encode('ascii')
 
-    # Associação ao protocolo nativo do Python.
-    __exit__ = i_exit
+def exchange(data: bytes, head_only: bool=False) -> tuple:
+    with RawClient(HOST, PORT) as client:
+        client.send(data)
+        return client.read_response(head_only)
 
-def i_request(path_a: str='/test.txt', method_a: str='GET', connection_a: str='keep-alive', version_a: str='HTTP/1.1') -> bytes:
-    return f'{method_a} {path_a} {version_a}\r\nHost: laboratorio\r\nConnection: {connection_a}\r\n\r\n'.encode('ascii')
+def run_suite(suite: unittest.TestSuite) -> bool:
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    print(f"{('PASS' if result.wasSuccessful() else 'FAIL')}: {result.testsRun} testes; falhas={len(result.failures)}, erros={len(result.errors)}")
+    return result.wasSuccessful()
 
-def i_exchange(data_a: bytes, head_only_a: bool=False) -> tuple:
-    with RawClient(HOST_a, PORT_a) as client_a:
-        client_a.i_send(data_a)
-        return client_a.i_read_response(head_only_a)
-
-def i_run_suite(suite_a: unittest_a.TestSuite) -> bool:
-    result_a = unittest_a.TextTestRunner(verbosity=2).run(suite_a)
-    print(f"{('PASS' if result_a.wasSuccessful() else 'FAIL')}: {result_a.testsRun} testes; falhas={len(result_a.failures)}, erros={len(result_a.errors)}")
-    return result_a.wasSuccessful()
-
-def i_remote_main(case_a: type) -> None:
-    global HOST_a, PORT_a
-    parser_a = argparse_a.ArgumentParser(description='Testes HTTP por sockets crus')
-    parser_a.add_argument('host', nargs='?', default=HOST_a)
-    parser_a.add_argument('port', nargs='?', type=int, default=PORT_a)
-    args_a = parser_a.parse_args()
-    (HOST_a, PORT_a) = (args_a.host, args_a.port)
-    raise SystemExit(0 if i_run_suite(unittest_a.defaultTestLoader.loadTestsFromTestCase(case_a)) else 1)
+def remote_main(case: type) -> None:
+    global HOST, PORT
+    parser = argparse.ArgumentParser(description='Testes HTTP por sockets crus')
+    parser.add_argument('host', nargs='?', default=HOST)
+    parser.add_argument('port', nargs='?', type=int, default=PORT)
+    args = parser.parse_args()
+    (HOST, PORT) = (args.host, args.port)
+    raise SystemExit(0 if run_suite(unittest.defaultTestLoader.loadTestsFromTestCase(case)) else 1)

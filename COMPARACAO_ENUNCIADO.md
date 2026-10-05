@@ -5,6 +5,16 @@ Revisão do projeto entregue em `t1` contra o enunciado original enviado pelo us
 locais passaram. **A entrega acadêmica ainda depende das evidências de rede, do teste
 presencial e do relatório final preenchido e exportado para PDF.**
 
+## Revisão técnica — 05/10/2026
+
+A nomenclatura foi simplificada para nomes Python descritivos. Construtores e
+context managers usam os métodos especiais diretamente, e os testes seguem a
+descoberta padrão do unittest. Documentação e guia de estudo acompanham os nomes atuais.
+
+Os requisitos de sockets, parsing, métodos, cabeçalhos, segurança, concorrência,
+persistência e medições foram preservados. Evidências em máquinas distintas e
+apresentação continuam pendentes.
+
 ## Implementação — Parte 1
 
 | Requisito original | Situação no projeto | Evidência / observação |
@@ -31,7 +41,7 @@ presencial e do relatório final preenchido e exportado para PDF.**
 | Concorrência sem bloquear por cliente lento | Implementado/testado localmente | 12 clientes progrediram com outro incompleto; threads daemon por conexão |
 | Duas máquinas clientes simultâneas | Pendente de laboratório | Guardar log/captura com dois IPs e tempos sobrepostos |
 | Justificativa de concorrência | Modelo/documentação prontos | Threads por simplicidade de I/O bloqueante; escala limitada pelo número de threads |
-| Convenção de identificadores escolhida pelo usuário | Aplicada ao código escrito | Métodos i_* e variáveis *_a; construtores/context manager ligados aos protocolos nativos do Python |
+| Identificadores Python | Corrigidos em 05/10/2026 | Nomes descritivos, construtores e context managers nativos |
 
 ## Parte 2 e medição
 
@@ -68,7 +78,7 @@ presencial e do relatório final preenchido e exportado para PDF.**
 ## Diferenças e limites explicitados
 
 - O projeto fica em `t1`, conforme solicitado, e mantém a pasta `tests` após confirmação do usuário.
-- Os nomes finais seguem a escolha do usuário pelo original; a documentação usa os nomes reais do código.
+- A nomenclatura foi simplificada em 05/10/2026; a documentação e os testes acompanham os nomes atuais.
 - A verificação inicial entre máquinas, exigida antes da implementação, não pôde ser feita
   neste ambiente de desenvolvimento. O grupo deve confirmá-la no laboratório e registrar a situação.
 - A suíte foi executada no macOS com Python 3.9; Windows/Linux/VDI não foram executados aqui.
@@ -82,6 +92,7 @@ presencial e do relatório final preenchido e exportado para PDF.**
 
 ## Verificação executada
 
+Verificação repetida em **05/10/2026**, após a correção dos nomes.
 `python3 tests/run_all.py`: **24 testes, zero falhas e zero erros**, com sockets TCP reais
 locais, incluindo teste regressivo de HEAD com cabeçalhos excessivos. A revisão independente
 encontrou esse caso; foi reproduzido antes da correção e passou depois. A documentação

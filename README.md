@@ -244,7 +244,9 @@ Preencha [RELATORIO_modelo.md](RELATORIO_modelo.md), inclua imagens anotadas e e
 `RELATORIO.pdf` pelo editor disponível. A documentação extensa é material de estudo;
 o relatório entregue deve permanecer sucinto. Confira [COMPARACAO_ENUNCIADO.md](COMPARACAO_ENUNCIADO.md).
 
-Antes de compactar, exclua `__pycache__`, `.pyc`, logs temporários e arquivos de build.
+O [guia de estudo](GUIA_DE_ESTUDO_NAO_ENTREGAR.md) explica cada método e a comunicação entre os módulos; é material interno do grupo e deve ficar fora da entrega.
+
+Antes de compactar, exclua o guia de estudo, `__pycache__`, `.pyc`, logs temporários e arquivos de build.
 Inclua código, README, `www`, relatório PDF e capturas `.pcapng` verdadeiras. Os scripts
 de teste podem acompanhar. Um integrante entrega o ZIP/TAR no Moodle com o grupo cadastrado.
 Não há capturas nem resultados de rede inventados neste projeto.

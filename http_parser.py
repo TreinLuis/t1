@@ -1,32 +1,29 @@
 """Parsing HTTP manual: fronteiras de mensagens não são fronteiras de recv()."""
-from dataclasses import dataclass as i_dataclass, field as i_field
-import re as re_a
-import socket as socket_a
-TOKEN_a = re_a.compile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
-MAX_BODY_BYTES_a = 1024 * 1024
+from dataclasses import dataclass, field
+import re
+import socket
+TOKEN = re.compile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+MAX_BODY_BYTES = 1024 * 1024
 
-@i_dataclass
+@dataclass
 class HttpRequest:
-    method_a: str
-    target_a: str
-    path_a: str
-    query_a: str
-    version_a: str
-    headers_a: dict = i_field(default_factory=dict)
-    body_a: bytes = b''
+    method: str
+    target: str
+    path: str
+    query: str
+    version: str
+    headers: dict = field(default_factory=dict)
+    body: bytes = b''
 
-    def i_header(self_a, name_a: str) -> str:
-        return self_a.headers_a.get(name_a.lower(), '')
+    def header(self, name: str) -> str:
+        return self.headers.get(name.lower(), '')
 
 class HttpParseError(Exception):
 
-    def i_init(self_a, status_a: int, message_a: str) -> None:
-        super().__init__(message_a)
-        self_a.status_a = status_a
-        self_a.head_only_a = False
-
-    # Associação ao protocolo nativo do Python.
-    __init__ = i_init
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.head_only = False
 
 class IdleTimeout(Exception):
     """Nenhum dado novo chegou dentro do timeout do socket."""
@@ -36,104 +33,101 @@ class ConnectionClosedByPeer(Exception):
 
 class RequestReader:
 
-    def i_init(self_a, sock_a: socket_a.socket, max_header_bytes_a: int=16384) -> None:
-        self_a.sock_a = sock_a
-        self_a.max_header_bytes_a = max_header_bytes_a
-        self_a.buffer_a = b''
+    def __init__(self, sock: socket.socket, max_header_bytes: int=16384) -> None:
+        self.sock = sock
+        self.max_header_bytes = max_header_bytes
+        self.buffer = b''
 
-    # Associação ao protocolo nativo do Python.
-    __init__ = i_init
-
-    def i_read_request(self_a) -> HttpRequest:
+    def read_request(self) -> HttpRequest:
         while True:
-            end_a = self_a.buffer_a.find(b'\r\n\r\n')
-            if ((end_a >= 0 and end_a + 4 > self_a.max_header_bytes_a)
-                    or (end_a < 0 and len(self_a.buffer_a) >= self_a.max_header_bytes_a)):
-                error_a = HttpParseError(400, 'Cabeçalhos excedem o limite')
-                error_a.head_only_a = self_a.buffer_a.startswith(b'HEAD ')
-                raise error_a
-            if end_a >= 0:
+            end = self.buffer.find(b'\r\n\r\n')
+            if ((end >= 0 and end + 4 > self.max_header_bytes)
+                    or (end < 0 and len(self.buffer) >= self.max_header_bytes)):
+                error = HttpParseError(400, 'Cabeçalhos excedem o limite')
+                error.head_only = self.buffer.startswith(b'HEAD ')
+                raise error
+            if end >= 0:
                 # O excedente pode conter o corpo ou a próxima requisição, nunca descartá-lo.
-                (head_a, self_a.buffer_a) = (self_a.buffer_a[:end_a], self_a.buffer_a[end_a + 4:])
-                request_a = self_a.i_parse_head(head_a)
-                request_a.body_a = self_a.i_read_body(int(request_a.i_header('content-length') or '0'))
-                return request_a
-            self_a.i_recv_more()
+                (head, self.buffer) = (self.buffer[:end], self.buffer[end + 4:])
+                request = self._parse_head(head)
+                request.body = self.read_body(int(request.header('content-length') or '0'))
+                return request
+            self._recv_more()
 
-    def i_read_body(self_a, n_a: int) -> bytes:
-        if not 0 <= n_a <= MAX_BODY_BYTES_a:
+    def read_body(self, n: int) -> bytes:
+        if not 0 <= n <= MAX_BODY_BYTES:
             raise HttpParseError(400, 'Corpo excede o limite de 1 MiB')
-        while len(self_a.buffer_a) < n_a:
-            self_a.i_recv_more()
-        (body_a, self_a.buffer_a) = (self_a.buffer_a[:n_a], self_a.buffer_a[n_a:])
-        return body_a
+        while len(self.buffer) < n:
+            self._recv_more()
+        (body, self.buffer) = (self.buffer[:n], self.buffer[n:])
+        return body
 
-    def i_recv_more(self_a) -> None:
+    def _recv_more(self) -> None:
         try:
-            data_a = self_a.sock_a.recv(4096)
-        except socket_a.timeout as error_a:
-            raise IdleTimeout() from error_a
-        if not data_a:
+            data = self.sock.recv(4096)
+        except socket.timeout as error:
+            raise IdleTimeout() from error
+        if not data:
             raise ConnectionClosedByPeer()
-        self_a.buffer_a += data_a
+        self.buffer += data
 
-    def i_parse_head(self_a, data_a: bytes) -> HttpRequest:
-        lines_a = data_a.decode('iso-8859-1').split('\r\n')
+    def _parse_head(self, data: bytes) -> HttpRequest:
+        lines = data.decode('iso-8859-1').split('\r\n')
         try:
-            (method_a, target_a, version_a) = self_a.i_parse_request_line(lines_a[0])
-            headers_a = self_a.i_parse_headers(lines_a[1:])
-            if version_a != 'HTTP/1.0' and (not headers_a.get('host')):
+            (method, target, version) = self._parse_request_line(lines[0])
+            headers = self._parse_headers(lines[1:])
+            if version != 'HTTP/1.0' and (not headers.get('host')):
                 raise HttpParseError(400, 'HTTP/1.1 exige Host')
             # Sem dois enquadramentos concorrentes: corpo não pode virar outra request line.
-            if 'transfer-encoding' in headers_a:
+            if 'transfer-encoding' in headers:
                 raise HttpParseError(400, 'Transfer-Encoding não é suportado')
-            length_a = headers_a.get('content-length', '0')
-            if not re_a.fullmatch('[0-9]+', length_a) or len(length_a) > 10:
+            length = headers.get('content-length', '0')
+            if not re.fullmatch('[0-9]+', length) or len(length) > 10:
                 raise HttpParseError(400, 'Content-Length inválido')
-            if int(length_a) > MAX_BODY_BYTES_a:
+            if int(length) > MAX_BODY_BYTES:
                 raise HttpParseError(400, 'Corpo excede o limite de 1 MiB')
-            if 'expect' in headers_a:
+            if 'expect' in headers:
                 raise HttpParseError(417, 'Expect não é suportado')
-            (path_a, separator_a, query_a) = target_a.partition('?')
-            return HttpRequest(method_a, target_a, path_a, query_a, version_a, headers_a)
-        except HttpParseError as error_a:
-            error_a.head_only_a = lines_a[0].startswith('HEAD ')
+            (path, separator, query) = target.partition('?')
+            return HttpRequest(method, target, path, query, version, headers)
+        except HttpParseError as error:
+            error.head_only = lines[0].startswith('HEAD ')
             raise
 
-    def i_parse_request_line(self_a, line_a: str) -> tuple:
-        parts_a = line_a.split(' ')
-        if len(parts_a) != 3 or not all(parts_a):
+    def _parse_request_line(self, line: str) -> tuple:
+        parts = line.split(' ')
+        if len(parts) != 3 or not all(parts):
             raise HttpParseError(400, 'Linha de requisição inválida')
-        (method_a, target_a, version_a) = parts_a
-        if not TOKEN_a.fullmatch(method_a):
+        (method, target, version) = parts
+        if not TOKEN.fullmatch(method):
             raise HttpParseError(400, 'Método inválido')
-        if any((ord(char_a) <= 32 or ord(char_a) >= 127 for char_a in target_a)) or '#' in target_a:
+        if any((ord(char) <= 32 or ord(char) >= 127 for char in target)) or '#' in target:
             raise HttpParseError(400, 'Request-target inválido; utilize percent-encoding')
-        if not re_a.fullmatch('HTTP/[0-9]\\.[0-9]', version_a):
+        if not re.fullmatch('HTTP/[0-9]\\.[0-9]', version):
             raise HttpParseError(400, 'Versão HTTP malformada')
-        if version_a[5] != '1':
+        if version[5] != '1':
             raise HttpParseError(505, 'Versão principal HTTP não suportada')
-        if method_a in ('GET', 'HEAD') and (not target_a.startswith('/')):
+        if method in ('GET', 'HEAD') and (not target.startswith('/')):
             raise HttpParseError(400, 'Esperado caminho iniciado por /')
-        return (method_a, target_a, version_a)
+        return (method, target, version)
 
-    def i_parse_headers(self_a, lines_a: list) -> dict:
-        headers_a = {}
-        for line_a in lines_a:
-            if ':' not in line_a:
+    def _parse_headers(self, lines: list) -> dict:
+        headers = {}
+        for line in lines:
+            if ':' not in line:
                 raise HttpParseError(400, 'Cabeçalho sem dois-pontos')
-            (name_a, value_a) = line_a.split(':', 1)
-            if not TOKEN_a.fullmatch(name_a):
+            (name, value) = line.split(':', 1)
+            if not TOKEN.fullmatch(name):
                 raise HttpParseError(400, 'Nome de cabeçalho inválido')
-            name_a = name_a.lower()
-            value_a = value_a.strip(' \t')
-            if any((ord(char_a) < 32 and char_a != '\t' or ord(char_a) == 127 for char_a in value_a)):
+            name = name.lower()
+            value = value.strip(' \t')
+            if any((ord(char) < 32 and char != '\t' or ord(char) == 127 for char in value)):
                 raise HttpParseError(400, 'Controle inválido no cabeçalho')
-            if name_a in headers_a:
-                if name_a in ('host', 'content-length', 'transfer-encoding'):
+            if name in headers:
+                if name in ('host', 'content-length', 'transfer-encoding'):
                     raise HttpParseError(400, 'Cabeçalho de enquadramento repetido')
-                value_a = headers_a[name_a] + ', ' + value_a
-            if name_a == 'host' and (not value_a or any((char_a in value_a for char_a in ' ,/\\\t'))):
+                value = headers[name] + ', ' + value
+            if name == 'host' and (not value or any((char in value for char in ' ,/\\\t'))):
                 raise HttpParseError(400, 'Host inválido')
-            headers_a[name_a] = value_a
-        return headers_a
+            headers[name] = value
+        return headers

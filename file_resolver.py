@@ -1,7 +1,7 @@
 """Resolução de caminhos para uma raiz de conteúdo administrada pelo grupo."""
-import os as os_a
-import re as re_a
-from urllib.parse import unquote as i_unquote
+import os
+import re
+from urllib.parse import unquote
 
 class ForbiddenError(Exception):
     """Caminho inseguro ou sem permissão de leitura."""
@@ -11,40 +11,37 @@ class NotFoundError(Exception):
 
 class FileResolver:
 
-    def i_init(self_a, root_a: str) -> None:
-        self_a.root_a = os_a.path.realpath(root_a)
-        if not os_a.path.isdir(self_a.root_a):
+    def __init__(self, root: str) -> None:
+        self.root = os.path.realpath(root)
+        if not os.path.isdir(self.root):
             raise ValueError('O diretório raiz não existe')
 
-    # Associação ao protocolo nativo do Python.
-    __init__ = i_init
-
-    def i_inside_root(self_a, path_a: str) -> str:
-        resolved_a = os_a.path.realpath(path_a)
+    def _inside_root(self, path: str) -> str:
+        resolved = os.path.realpath(path)
         try:
             # commonpath compara componentes; startswith aceitaria www-secret.
-            inside_a = os_a.path.commonpath([self_a.root_a, resolved_a]) == self_a.root_a
+            inside = os.path.commonpath([self.root, resolved]) == self.root
         except ValueError:
             # commonpath compara componentes; startswith aceitaria www-secret.
-            inside_a = False
-        if not inside_a:
+            inside = False
+        if not inside:
             raise ForbiddenError('O caminho sai do diretório raiz')
-        return resolved_a
+        return resolved
 
-    def i_resolve(self_a, raw_path_a: str) -> str:
-        if re_a.search('%(?![0-9A-Fa-f]{2})', raw_path_a):
+    def resolve(self, raw_path: str) -> str:
+        if re.search('%(?![0-9A-Fa-f]{2})', raw_path):
             raise ForbiddenError('Percent-encoding inválido')
         try:
-            path_a = i_unquote(raw_path_a, encoding='utf-8', errors='strict')
-        except UnicodeError as error_a:
-            raise ForbiddenError('Caminho não é UTF-8 válido') from error_a
+            path = unquote(raw_path, encoding='utf-8', errors='strict')
+        except UnicodeError as error:
+            raise ForbiddenError('Caminho não é UTF-8 válido') from error
         # Barra invertida, NUL e ':' também bloqueiam caminhos especiais do Windows.
-        if not path_a.startswith('/') or any((char_a in path_a for char_a in ('\x00', '\\', ':'))):
+        if not path.startswith('/') or any((char in path for char in ('\x00', '\\', ':'))):
             raise ForbiddenError('Caminho proibido')
-        candidate_a = self_a.i_inside_root(os_a.path.join(self_a.root_a, path_a.lstrip('/')))
+        candidate = self._inside_root(os.path.join(self.root, path.lstrip('/')))
         # O index também pode ser um symlink; validar novamente é indispensável.
-        if os_a.path.isdir(candidate_a):
-            candidate_a = self_a.i_inside_root(os_a.path.join(candidate_a, 'index.html'))
-        if not os_a.path.isfile(candidate_a):
+        if os.path.isdir(candidate):
+            candidate = self._inside_root(os.path.join(candidate, 'index.html'))
+        if not os.path.isfile(candidate):
             raise NotFoundError('Arquivo não encontrado')
-        return candidate_a
+        return candidate

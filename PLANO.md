@@ -1,17 +1,17 @@
 # Plano de implementação — Trabalho 1
 
 **Objetivo:** entregar o projeto descrito no anexo, dentro de `t1`.
-**Especificação:** enunciado anexado pelo usuário em 29/09/2026.
+**Especificação:** enunciado anexado em 29/09/2026 e revisado em 05/10/2026.
 **Arquitetura:** `HttpServer` aceita TCP e cria uma thread daemon por conexão;
 `ConnectionHandler` mantém o ciclo HTTP; `RequestReader` delimita mensagens;
 `RequestHandler`, `FileResolver` e `HttpResponse` resolvem e enviam arquivos.
-**Atualização do usuário:** manter a pasta tests, conforme confirmação posterior, e usar a convenção de nomes do enunciado original.
+**Revisão técnica (05/10/2026):** manter a pasta tests e usar nomes Python descritivos.
 
 **Tecnologia:** Python 3.9+, exclusivamente biblioteca padrão, sockets bloqueantes.
 
 ## Decisões
 
-- Implementação diretamente na pasta solicitada; o workspace não contém repositório Git.
+- Implementação diretamente na pasta solicitada; t1 passou a ter repositório Git após a implementação inicial.
 - Bind padrão `0.0.0.0`; porta CLI entre 1025 e 65535.
 - Cabeçalhos até 16 KiB, corpo recebido até 1 MiB; framing ambíguo fecha com 400.
 - Corpos com Content-Length são consumidos antes de processar a próxima mensagem.
@@ -48,3 +48,14 @@
 - Servidor iniciado pela CLI, scripts HTTP/stream/concorrência e benchmarks C1/C2 executados com exit code 0; Ctrl+C encerrou sem traceback.
 - Porta baixa, timeout NaN e bind loopback rejeitados conforme esperado.
 - Nenhuma captura, RTT ou medição entre máquinas foi fabricada; conferir COMPARACAO_ENUNCIADO.md para pendências do laboratório.
+
+## Correção da nomenclatura — 05/10/2026
+
+- Renomeados métodos, parâmetros, atributos, imports e referências, preservando a lógica HTTP.
+- Construtores e context managers agora usam os métodos especiais diretamente.
+- Testes usam nomes test_... reconhecidos pelo unittest padrão, sem alterar o loader global.
+- Comparação do enunciado corrigida e documentação/guia de estudo atualizados, inclusive inventário.
+- Manter evidências reais separadas de validação local.
+
+- Verificação após a correção: 24 testes integrados passaram; scripts CLI de conformidade, fluxo, concorrência e C1/C2 terminaram com código zero. Argumentos inválidos foram rejeitados e Ctrl+C encerrou sem traceback.
+- Inventário conferido por módulo: 72 definições e assinaturas correspondem à documentação e ao guia; links de linha e índice atualizados.

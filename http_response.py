@@ -1,56 +1,56 @@
 """Construção manual das respostas; nenhum módulo HTTP de servidor."""
-from dataclasses import dataclass as i_dataclass, field as i_field
-from datetime import datetime as i_datetime, timezone as i_timezone
-from email.utils import format_datetime as i_format_datetime
-import os as os_a
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from email.utils import format_datetime
+import os
 from typing import BinaryIO, Iterator, Optional
-REASONS_a = {200: 'OK', 400: 'Bad Request', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 417: 'Expectation Failed', 500: 'Internal Server Error', 505: 'HTTP Version Not Supported'}
-MESSAGES_a = {400: 'Requisição malformada.', 403: 'Acesso proibido.', 404: 'Arquivo não encontrado.', 405: 'Método não permitido.', 417: 'Expectativa não suportada.', 500: 'Erro interno do servidor.', 505: 'Versão HTTP não suportada.'}
-MIME_TYPES_a = {'.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.pdf': 'application/pdf', '.svg': 'image/svg+xml; charset=utf-8', '.ico': 'image/x-icon', '.gif': 'image/gif'}
+REASONS = {200: 'OK', 400: 'Bad Request', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 417: 'Expectation Failed', 500: 'Internal Server Error', 505: 'HTTP Version Not Supported'}
+MESSAGES = {400: 'Requisição malformada.', 403: 'Acesso proibido.', 404: 'Arquivo não encontrado.', 405: 'Método não permitido.', 417: 'Expectativa não suportada.', 500: 'Erro interno do servidor.', 505: 'Versão HTTP não suportada.'}
+MIME_TYPES = {'.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.pdf': 'application/pdf', '.svg': 'image/svg+xml; charset=utf-8', '.ico': 'image/x-icon', '.gif': 'image/gif'}
 
-def i_format_http_date() -> str:
+def format_http_date() -> str:
     # Nomes ingleses e GMT são independentes do locale da máquina.
-    return i_format_datetime(i_datetime.now(i_timezone.utc), usegmt=True)
+    return format_datetime(datetime.now(timezone.utc), usegmt=True)
 
-def i_guess_content_type(path_a: str) -> str:
-    return MIME_TYPES_a.get(os_a.path.splitext(path_a)[1].lower(), 'application/octet-stream')
+def guess_content_type(path: str) -> str:
+    return MIME_TYPES.get(os.path.splitext(path)[1].lower(), 'application/octet-stream')
 
-@i_dataclass
+@dataclass
 class HttpResponse:
-    status_a: int
-    headers_a: dict = i_field(default_factory=dict)
-    body_a: bytes = b''
-    head_only_a: bool = False
-    file_a: Optional[BinaryIO] = None
+    status: int
+    headers: dict = field(default_factory=dict)
+    body: bytes = b''
+    head_only: bool = False
+    file: Optional[BinaryIO] = None
 
-    def i_to_head_bytes(self_a) -> bytes:
-        lines_a = [f'HTTP/1.1 {self_a.status_a} {REASONS_a[self_a.status_a]}']
-        lines_a.extend((f'{name_a}: {value_a}' for (name_a, value_a) in self_a.headers_a.items()))
-        return ('\r\n'.join(lines_a) + '\r\n\r\n').encode('iso-8859-1')
+    def to_head_bytes(self) -> bytes:
+        lines = [f'HTTP/1.1 {self.status} {REASONS[self.status]}']
+        lines.extend((f'{name}: {value}' for (name, value) in self.headers.items()))
+        return ('\r\n'.join(lines) + '\r\n\r\n').encode('iso-8859-1')
 
-    def i_body_bytes(self_a) -> Iterator[bytes]:
-        if self_a.head_only_a:
+    def body_bytes(self) -> Iterator[bytes]:
+        if self.head_only:
             return
-        if self_a.file_a is None:
-            if self_a.body_a:
-                yield self_a.body_a
+        if self.file is None:
+            if self.body:
+                yield self.body
             return
         # Só enviar o tamanho anunciado, mesmo se o arquivo crescer após fstat().
-        remaining_a = int(self_a.headers_a['Content-Length'])
-        while remaining_a:
-            chunk_a = self_a.file_a.read(min(65536, remaining_a))
-            if not chunk_a:
+        remaining = int(self.headers['Content-Length'])
+        while remaining:
+            chunk = self.file.read(min(65536, remaining))
+            if not chunk:
                 raise OSError('Arquivo foi truncado durante o envio')
-            remaining_a -= len(chunk_a)
-            yield chunk_a
+            remaining -= len(chunk)
+            yield chunk
 
-    def i_close(self_a) -> None:
-        if self_a.file_a is not None:
-            self_a.file_a.close()
+    def close(self) -> None:
+        if self.file is not None:
+            self.file.close()
 
     @classmethod
-    def i_error(cls_a, status_a: int, extra_headers_a: Optional[dict]=None) -> 'HttpResponse':
-        body_a = f'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>{status_a} {REASONS_a[status_a]}</title><h1>{status_a}</h1><p>{MESSAGES_a[status_a]}</p></html>\n'.encode('utf-8')
-        headers_a = {'Content-Length': str(len(body_a)), 'Content-Type': 'text/html; charset=utf-8'}
-        headers_a.update(extra_headers_a or {})
-        return cls_a(status_a, headers_a, body_a)
+    def error(cls, status: int, extra_headers: Optional[dict]=None) -> 'HttpResponse':
+        body = f'<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>{status} {REASONS[status]}</title><h1>{status}</h1><p>{MESSAGES[status]}</p></html>\n'.encode('utf-8')
+        headers = {'Content-Length': str(len(body)), 'Content-Type': 'text/html; charset=utf-8'}
+        headers.update(extra_headers or {})
+        return cls(status, headers, body)
