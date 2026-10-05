@@ -1,0 +1,1 @@
+2026-10-05 18:36:30,222 INFO [MainThread] Servidor em 0.0.0.0:8080; raiz=/home/gabi/Desktop/Lab.Redes/t1/www
