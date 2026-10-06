@@ -29,6 +29,7 @@ class HttpResponse:
         return ('\r\n'.join(lines) + '\r\n\r\n').encode('iso-8859-1')
 
     def body_bytes(self) -> Iterator[bytes]:
+        # HEAD anuncia o mesmo tamanho de GET, mas não lê nem envia o corpo.
         if self.head_only:
             return
         if self.file is None:
@@ -38,6 +39,7 @@ class HttpResponse:
         # Só enviar o tamanho anunciado, mesmo se o arquivo crescer após fstat().
         remaining = int(self.headers['Content-Length'])
         while remaining:
+            # Lê até 64 KiB por vez; yield entrega cada bloco ao envio no socket.
             chunk = self.file.read(min(65536, remaining))
             if not chunk:
                 raise OSError('Arquivo foi truncado durante o envio')

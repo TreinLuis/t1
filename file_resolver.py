@@ -17,6 +17,7 @@ class FileResolver:
             raise ValueError('O diretório raiz não existe')
 
     def _inside_root(self, path: str) -> str:
+        # Resolve '..' e links simbólicos antes de verificar a pasta de destino.
         resolved = os.path.realpath(path)
         try:
             # commonpath compara componentes; startswith aceitaria www-secret.
@@ -32,12 +33,15 @@ class FileResolver:
         if re.search('%(?![0-9A-Fa-f]{2})', raw_path):
             raise ForbiddenError('Percent-encoding inválido')
         try:
+            # Decodifica uma vez: %20 vira espaço e %2e%2e vira '..'.
+            # A verificação de segurança ocorre DEPOIS dessa decodificação.
             path = unquote(raw_path, encoding='utf-8', errors='strict')
         except UnicodeError as error:
             raise ForbiddenError('Caminho não é UTF-8 válido') from error
         # Barra invertida, NUL e ':' também bloqueiam caminhos especiais do Windows.
         if not path.startswith('/') or any((char in path for char in ('\x00', '\\', ':'))):
             raise ForbiddenError('Caminho proibido')
+        # Remove a '/' inicial para join não descartar a raiz configurada.
         candidate = self._inside_root(os.path.join(self.root, path.lstrip('/')))
         # O index também pode ser um symlink; validar novamente é indispensável.
         if os.path.isdir(candidate):

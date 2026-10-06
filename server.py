@@ -31,6 +31,7 @@ class HttpServer:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            # bind escolhe interface/porta; listen habilita a espera por conexões.
             self.sock.bind((self.host, self.port))
             self.port = self.sock.getsockname()[1]
             self.sock.listen(128)
@@ -50,6 +51,7 @@ class HttpServer:
                 if self.stopping.is_set():
                     break
                 raise
+            # Uma thread por conexão: um cliente lento não bloqueia os demais.
             worker = threading.Thread(target=self._serve_connection, args=(sock, addr), daemon=True)
             with self.lock:
                 if self.stopping.is_set():

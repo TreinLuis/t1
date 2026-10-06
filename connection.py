@@ -19,11 +19,14 @@ class ConnectionHandler:
         self.sock = sock
         self.addr = addr
         self.config = config
+        # Limite de 16 KiB para linha inicial + cabeçalhos + CRLF duplo.
         self.reader = RequestReader(sock, 16384)
 
     def run(self) -> None:
         try:
+            # Padrão: 5 s por espera de novos bytes, não por requisição inteira.
             self.sock.settimeout(self.config.idle_timeout)
+            # A mesma conexão TCP pode atender vários pedidos em sequência.
             while True:
                 request = None
                 try:
@@ -36,6 +39,7 @@ class ConnectionHandler:
                     keep_alive = False
                     logging.debug('Requisição rejeitada de %s:%s: %s', *self.addr, error)
                 except (IdleTimeout, ConnectionClosedByPeer):
+                    # Silêncio além do timeout ou EOF: sai do loop e fecha no finally.
                     break
                 response.headers.update({'Date': format_http_date(), 'Server': self.config.server_name, 'Connection': 'keep-alive' if keep_alive else 'close'})
                 sent = self.send(response)
@@ -48,20 +52,24 @@ class ConnectionHandler:
             self.close()
 
     def _keep_alive(self, request: HttpRequest) -> bool:
+        # Connection pode ter vários tokens; limpa espaços e ignora maiúsculas.
         tokens = {token.strip().lower() for token in request.header('connection').split(',')}
         if 'close' in tokens:
             return False
+        # HTTP/1.1 é persistente por padrão; HTTP/1.0 exige keep-alive explícito.
         return request.version != 'HTTP/1.0' or 'keep-alive' in tokens
 
     def send(self, response: HttpResponse) -> int:
         sent = 0
         try:
             head = response.to_head_bytes()
+            # sendall envia todos os bytes ou lança erro; send poderia enviar só parte.
             self.sock.sendall(head)
             sent += len(head)
             for chunk in response.body_bytes():
                 self.sock.sendall(chunk)
                 sent += len(chunk)
+            # O log conta cabeçalhos HTTP + corpo, sem incluir overhead TCP/IP.
             return sent
         finally:
             response.close()

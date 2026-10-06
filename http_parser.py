@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 import re
 import socket
 TOKEN = re.compile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+# Limite do corpo recebido: 1 MiB (1.048.576 bytes).
 MAX_BODY_BYTES = 1024 * 1024
 
 @dataclass
@@ -40,6 +41,8 @@ class RequestReader:
 
     def read_request(self) -> HttpRequest:
         while True:
+            # Uma leitura TCP pode trazer parte de um pedido ou vários pedidos juntos.
+            # CRLF duplo marca o fim dos cabeçalhos HTTP, não o fim de recv().
             end = self.buffer.find(b'\r\n\r\n')
             if ((end >= 0 and end + 4 > self.max_header_bytes)
                     or (end < 0 and len(self.buffer) >= self.max_header_bytes)):
@@ -59,19 +62,23 @@ class RequestReader:
             raise HttpParseError(400, 'Corpo excede o limite de 1 MiB')
         while len(self.buffer) < n:
             self._recv_more()
+        # Content-Length delimita o corpo; a sobra pertence ao próximo pedido.
         (body, self.buffer) = (self.buffer[:n], self.buffer[n:])
         return body
 
     def _recv_more(self) -> None:
         try:
+            # Recebe ATÉ 4.096 bytes; TCP não garante esse tamanho por chamada.
             data = self.sock.recv(4096)
         except socket.timeout as error:
+            # O limite configurado no socket venceu sem receber novos bytes.
             raise IdleTimeout() from error
         if not data:
             raise ConnectionClosedByPeer()
         self.buffer += data
 
     def _parse_head(self, data: bytes) -> HttpRequest:
+        # Parsing manual: decodifica os bytes e separa as linhas por CRLF.
         lines = data.decode('iso-8859-1').split('\r\n')
         try:
             (method, target, version) = self._parse_request_line(lines[0])
@@ -88,6 +95,7 @@ class RequestReader:
                 raise HttpParseError(400, 'Corpo excede o limite de 1 MiB')
             if 'expect' in headers:
                 raise HttpParseError(417, 'Expect não é suportado')
+            # A query não faz parte do nome do arquivo procurado no disco.
             (path, separator, query) = target.partition('?')
             return HttpRequest(method, target, path, query, version, headers)
         except HttpParseError as error:
@@ -95,6 +103,7 @@ class RequestReader:
             raise
 
     def _parse_request_line(self, line: str) -> tuple:
+        # Ex.: GET /index.html HTTP/1.1. Espaços extras tornam a linha inválida.
         parts = line.split(' ')
         if len(parts) != 3 or not all(parts):
             raise HttpParseError(400, 'Linha de requisição inválida')
@@ -116,10 +125,12 @@ class RequestReader:
         for line in lines:
             if ':' not in line:
                 raise HttpParseError(400, 'Cabeçalho sem dois-pontos')
+            # Só o primeiro ':' separa nome e valor; o valor pode conter outros.
             (name, value) = line.split(':', 1)
             if not TOKEN.fullmatch(name):
                 raise HttpParseError(400, 'Nome de cabeçalho inválido')
             name = name.lower()
+            # Remove espaços e tabs apenas das pontas, preservando o interior.
             value = value.strip(' \t')
             if any((ord(char) < 32 and char != '\t' or ord(char) == 127 for char in value)):
                 raise HttpParseError(400, 'Controle inválido no cabeçalho')

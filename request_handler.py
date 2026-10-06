@@ -18,10 +18,13 @@ class RequestHandler:
             file = None
             try:
                 path = self.resolver.resolve(request.path)
+                # Modo binário preserva os bytes de texto, imagens e demais arquivos.
                 file = open(path, 'rb')
+                # Obtém o tamanho do arquivo aberto sem ler todo o conteúdo.
                 metadata = os.fstat(file.fileno())
                 if not stat.S_ISREG(metadata.st_mode):
                     raise NotFoundError('O alvo não é um arquivo regular')
+                # Content-Length conta só o corpo, sem os cabeçalhos HTTP.
                 response = HttpResponse(200, {'Content-Length': str(metadata.st_size), 'Content-Type': guess_content_type(path)}, file=file)
                 # A resposta assume o descritor e o libera mesmo em HEAD ou falha de envio.
                 file = None
